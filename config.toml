@@ -28,9 +28,9 @@ disqusShortname = ""
   js_modules = []
 
   # Description and meta data for the search engines
-  author = "Lednerb"
-  description = "Bilberry Premium Theme for Hugo."
-  keywords = "blog,personal,responsive,search,font awesome,pages,posts,multilingual,highlight.js,syntax highlighting,premium,shortcuts"
+  author = "DylanHe"
+  description = "Glitchy Thought Repository"
+  keywords = "blog,DylanHe,Glitchy Thought Repository"
 
   # How many articles should be displayed at once?
   paginate = 7
@@ -83,7 +83,7 @@ disqusShortname = ""
     subtitle = "Hello World! This is the most epic subtitle ever."
 
     # if you want to use libravatar or gravatar for the header image
-    avatarEmail = "code@lednerb.de"
+    #avatarEmail = "code@lednerb.de"
 
     # set an path to the image file you want to use | overwrites avatar by email
     customImage = ""
