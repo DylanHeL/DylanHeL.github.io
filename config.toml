@@ -145,8 +145,8 @@ disqusShortname = ""
     # all icons https://fontawesome.com/icons?d=gallery&m=free
     # brand icons https://fontawesome.com/icons?d=gallery&s=brands&m=free
     socialMediaLinks = [
-      { link = "https://twitter.com/TheRealLednerb", icon = "fab fa-twitter", rel = "me" },
-      { link = "https://github.com/Lednerb", icon = "fab fa-github" },
+      { link = "https://twitter.com", icon = "fab fa-twitter", rel = "me" },
+      { link = "https://github.com/DylanHeL", icon = "fab fa-github" },
     ]
 
     # show an archive link in the footer
@@ -169,10 +169,10 @@ disqusShortname = ""
 [Languages]
   [Languages.en]
     weight = 1
-  [Languages.de]
+  [Languages.ch]
     weight = 2
-    title = "Mein cooler neuer Blog"
-    subtitle = "Hallo Welt! Dies ist der epischste Untertitel aller Zeiten."
+    title = "离散思维站点"
+    subtitle = "\"书写是为了让思想在体外稳定存在\" — 艾络温"
 
 [markup]
   defaultMarkdownHandler = 'goldmark'
