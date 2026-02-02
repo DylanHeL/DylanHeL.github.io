@@ -171,8 +171,8 @@ disqusShortname = ""
     weight = 1
   [Languages.ch]
     weight = 2
-    title = "离散思维站点"
-    subtitle = "\"书写是为了让思想在体外稳定存在\" — 艾络温"
+    title = "离 散 思 维 站 点"
+    subtitle = "\"书写是为了让思想在体外稳定存在。\"   ——— 艾络温"
 
 [markup]
   defaultMarkdownHandler = 'goldmark'
