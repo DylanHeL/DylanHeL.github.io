@@ -37,6 +37,80 @@ tags = ["AI-Infra"]
 
 
 
+```python
+from enum import Enum, auto
+from gc import freeze
+from itertools import count
+
+
+class SequenceStatus(Enum):
+    RUNNING = auto()
+    WAITING = auto()
+    FINISHED = auto()
+
+class Sequence:
+    block_size = 256
+    counter = count()
+
+    def __init__(self, token_ids: list[int]):
+        self.seq_id = next(Sequence.counter)
+        self.status = SequenceStatus.WAITING
+        self.token_ids = token_ids
+        self.last_token = token_ids[-1] if token_ids else None
+        self.num_tokens = len(token_ids)
+        self.num_prompt_tokens = len(token_ids)
+        self.num_cached_tokens = 0
+        self.num_blocks = 0
+        self.block_list = []
+
+    def __len__(self):
+        return self.num_tokens
+
+    def __iter__(self):
+        return iter(self.token_ids)
+
+    def __getitem__(self, k):
+        return self.token_ids[k]
+
+    def __getstate__(self):
+        return {
+            'seq_id': self.seq_id, 'status': self.status, 'last_token': self.last_token,
+            'num_tokens': self.num_tokens, 'num_prompt_tokens': self.num_prompt_tokens,
+            'num_cached_tokens': self.num_cached_tokens,'block_list': self.block_list
+        }
+    def __setstate__(self, state):
+        self.seq_id = state['seq_id']
+        self.status = state['status']
+        self.num_tokens = state['num_tokens']
+        self.num_prompt_tokens = state['num_prompt_tokens']
+        self.num_cached_tokens = state['num_cached_tokens']
+        self.block_list = state['block_list']
+        self.last_token = state['last_token']
+
+    def tokens_in_block(self,block_idx):
+        assert 0 <= block_idx < self.num_blocks
+        if block_idx != self.num_blocks-1:
+            return self.token_ids[block_idx*self.block_size:(block_idx+1)*self.block_size]
+        else:
+            return self.token_ids[block_idx*self.block_size:]
+
+    def append_token(self, token_id):
+        self.token_ids.append(token_id)
+        self.last_token = token_id
+        self.num_cached_tokens += 1
+
+    def reset(self):
+        self.block_list = []
+        self.num_blocks = 0
+        self.num_cached_tokens = 0
+        self.status = SequenceStatus.WAITING
+
+
+
+```
+
+
+
 ## BlockManager
 
 ### class Block
@@ -53,6 +127,32 @@ To maximize **memory utilization**, sequences sharing the same prefix will map t
 | **`block_id`**   | A unique integer identifier for the physical memory block    |
 | **`token_ids`**  | A list storing the specific token IDs assigned to this block |
 | **`block_hash`** | The current hash depends on both the tokens inside and the **previous block's hash** |
+
+
+
+```python
+class Block:
+    def __init__(self, block_id):
+        self.block_id = block_id
+        self.token_ids = []
+        self.ref_cache = 0
+        self.block_hash = None
+
+    def __len__(self):
+        return len(self.token_ids)
+
+    def __iter__(self):
+        return iter(self.token_ids)
+
+    def __getitem__(self, k):
+        return self.token_ids[k]
+
+    def free(self):
+        self.ref_cache = 0
+        self.token_ids = []
+        self.block_hash = None
+
+```
 
 
 
@@ -87,4 +187,87 @@ We should pay attention to two aspects of this class:
 | **`deallocate`**   | Decrements the **`ref_count`** of the associated blocks. If a block's count reaches zero, it is returned to the free pool, though its content might be preserved in the hash table for future "warm" hits. |
 | **`can_allocate`** | A predictive check to ensure the GPU has sufficient free blocks to accommodate a new sequence or a growth request, preventing runtime **OOM** errors. |
 | **`append_token`** | Manages the dynamic growth of a sequence during the **Decode** phase. It determines when a block is fully "sealed" (triggering hash computation) and when a new physical block must be provisioned. |
+
+
+
+```python
+import hashlib
+
+
+class BlockManager:
+    def __init__(self, block_size, num_blocks):
+        self.block_size = block_size
+        self.num_blocks = num_blocks
+        self.blocks: list[Block] = [Block(i) for i in range(self.num_blocks)]
+        self.hash_to_block = dict()
+        self.free_blocks = list(range(num_blocks))
+
+    def box_block(self, sequence:Sequence, block_idx):
+        assert len(sequence) >= self.block_size * (block_idx+1)
+        token_ids = sequence.tokens_in_block(block_idx)
+
+        if block_idx == 0:
+            data = str(tuple(token_ids)).encode('utf-8')
+            hash = hashlib.sha256(data).hexdigest()
+        else:
+            pre_hash = self.blocks[sequence.block_list[block_idx-1]].block_hash
+            data = (pre_hash+":"+str(tuple(token_ids))).encode('utf-8')
+            hash = hashlib.sha256(data).hexdigest()
+        if hash in self.hash_to_block:
+            self.blocks[self.hash_to_block[hash]].ref_cache += 1
+            self.blocks[sequence.block_list[block_idx]].free()
+            self.free_blocks.append(sequence.block_list[block_idx])
+            sequence.block_list[block_idx] = self.hash_to_block[hash]
+        else:
+            self.hash_to_block[hash] = sequence.block_list[block_idx]
+            self.blocks[sequence.block_list[block_idx]].ref_cache += 1
+            self.blocks[sequence.block_list[block_idx]].block_hash = hash
+
+
+    def allocate_for_sequence(self, sequence:Sequence):
+        assert not sequence.block_list
+        full_load = 1 if len(sequence)%self.block_size==0 else 0
+        blocks_needed = len(sequence)//self.block_size +1-full_load
+        if len(self.free_blocks)<blocks_needed:
+            return False
+        else:
+            sequence.num_blocks = blocks_needed
+            for i in range(blocks_needed):
+                new_block_id = self.free_blocks.pop()
+                self.blocks[new_block_id].token_ids = list(sequence.tokens_in_block(i))
+                sequence.block_list.append(new_block_id)
+                if full_load or i != blocks_needed - 1:
+                    self.box_block(sequence, i)
+            return True
+
+    def deallocate_for_sequence(self, sequence:Sequence):
+        block_freed = 0
+        for block_id in sequence.block_list:
+            assert self.blocks[block_id].ref_cache > 0, f"Block {block_id} ref_cache is {self.blocks[block_id].ref_cache}, cannot decrement"
+            self.blocks[block_id].ref_cache -= 1
+            if self.blocks[block_id].ref_cache == 0:
+                block_freed += 1
+                if self.blocks[block_id].block_hash is not None and self.blocks[block_id].block_hash in self.hash_to_block:
+                    del self.hash_to_block[self.blocks[block_id].block_hash]
+                self.blocks[block_id].free()
+                self.free_blocks.append(block_id)
+        sequence.reset()
+        return block_freed
+
+    def manage_blocks_after_append(self, sequence:Sequence):
+        # after sequence.append_token() manage block allocate
+        if len(sequence) % self.block_size == 0:
+            self.box_block(sequence, sequence.num_blocks-1)
+        elif len(sequence) % self.block_size == 1:
+            if len(self.free_blocks) == 0:
+                return False
+            else:
+                new_block_id = self.free_blocks.pop()
+                sequence.num_blocks+=1
+                sequence.block_list.append(new_block_id)
+        else:
+            pass
+        return True
+
+```
 
