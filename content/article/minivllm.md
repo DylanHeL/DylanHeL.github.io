@@ -170,23 +170,21 @@ We should pay attention to two aspects of this class:
 
   **Maintenance of the Hash Table (Contextual Integrity):** When managing the `hash_table`, we must account for **contextual dependency**. Even if the `token_ids` within two blocks are identical, they may represent distinct states and thus require different `block_hash` values. This is because the KV cache values are **contingent upon** the entire prefix history. Therefore, the `block_hash` must be carefully computed as a chained function of both the current tokens and the preceding block's hash to prevent incorrect cache hits.
 
-| Attributes          | Description                                    |
-| ------------------- | ---------------------------------------------- |
-| **`block_size`**    | how many tokens in one block                   |
-| **`blocks`**        | the list of all blocks_id in the GPU memory    |
-| **`hash_to_block`** | the dictionary that map block_hash to block_id |
-| **`free_blocks`**   | the blocks that are free                       |
-| **`used_blocks`**   | the blocks that are used                       |
+| Attributes          | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| **`block_size`**    | how many tokens in one block                             |
+| **`blocks`**        | the list of all blocks (not block_ids) in the GPU memory |
+| **`hash_to_block`** | the dictionary that map block_hash to block_id           |
+| **`free_blocks`**   | the blocks that are free                                 |
 
 
 
-| Methods            | Description                                                  |
-| ------------------ | ------------------------------------------------------------ |
-| **`compute_hash`** | Generates a unique deterministic fingerprint for a **full block**. It incorporates the current `token_ids` and the `block_hash` of the preceding block to ensure **contextual uniqueness** |
-| **`allocate`**     | The entry point for new sequences. It performs a **prefix cache lookup**; if the prefix hash matches an existing block, it increments the `ref_count`. Otherwise, it claims a new block from the free pool. |
-| **`deallocate`**   | Decrements the **`ref_count`** of the associated blocks. If a block's count reaches zero, it is returned to the free pool, though its content might be preserved in the hash table for future "warm" hits. |
-| **`can_allocate`** | A predictive check to ensure the GPU has sufficient free blocks to accommodate a new sequence or a growth request, preventing runtime **OOM** errors. |
-| **`append_token`** | Manages the dynamic growth of a sequence during the **Decode** phase. It determines when a block is fully "sealed" (triggering hash computation) and when a new physical block must be provisioned. |
+| Methods                          | Description                                                  |
+| -------------------------------- | ------------------------------------------------------------ |
+| **`box_block`**                  | Generates a unique deterministic fingerprint for a **full block**. It incorporates the current `token_ids` and the `block_hash` of the preceding block to ensure **contextual uniqueness** |
+| **`allocate_for_sequence`**      | The entry point for new sequences. It performs a **prefix cache lookup**; if the prefix hash matches an existing block, it increments the `ref_count`. Otherwise, it claims a new block from the free pool. |
+| **`deallocate_for_sequence`**    | Decrements the **`ref_count`** of the associated blocks. If a block's count reaches zero, it is returned to the free pool, though its content might be preserved in the hash table for future "warm" hits. |
+| **`manage_blocks_after_append`** | Manages the dynamic growth of a sequence during the **Decode** phase. It determines when a block is fully "boxed" (triggering hash computation) and when a new physical block must be provisioned. |
 
 
 
@@ -271,3 +269,9 @@ class BlockManager:
 
 ```
 
+
+
+- **manage_blocks_after_append** in **BlockManager** is solely responsible for block encapsulation and allocation; it does not handle appending token_id to the Sequence or adding tokens to the physical blocks.
+- The order of **free_blocks** does not affect functionality, so **pop()** and **append()** are used to maintain **O(1)** complexity.
+- **manage_blocks_after_append** processes a single token during the generation phase, while **allocate_for_sequence** handles the entire sequence during the prompt phase.
+- **box_block** calculates a hash using the **prefix** and **token_ids**. If a match is found (hash hit), the current block is freed and replaced with the index of the block corresponding to the previous hash.
