@@ -350,8 +350,8 @@ def flash_attn_decode(
 
 The idea behind split-k is that when the batch size is 1 but the sequence length is extremely long, assigning a single sequence to only one program process clearly results in insufficient parallelism, as shown in the figure below.
 
-![img](../..//static/posts/parallelization.gif)
+![img](posts/parallelization.gif)
 
 The long sequence is then split into k segments to further enhance parallelism, and a reduction step is incorporated to update the final output.
 
-![img](../..//static/posts//parallelization_kv.gif)
+![img](posts/parallelization_kv.gif)
