@@ -8,6 +8,8 @@ draft = false
 
 categories = ["AI-Infra","unfinished"]
 
+math= true
+
 tags = ["AI-Infra","unfinished"]
 
 +++
@@ -212,7 +214,7 @@ Once the computational flow is established, the focus shifts to data movement. T
 Each program instance (thread block) is assigned to a specific Query Head. We compute the absolute memory offset for the Query using its batch and head strides:
 
 - **Offset Calculation:** The `q_offset` is determined by `(pid_batch * q_stride_batch) + (pid_head * q_stride_head) + offs_d`.
-- **Persistence:** Since the Query remains constant throughout the lifetime of a single kernel execution, it is loaded into registers once and reused across all subsequent $KV$ iterations.
+- **Persistence:** Since the Query remains constant throughout the lifetime of a single kernel execution, it is loaded into registers once and reused across all subsequent KV iterations.
 
 #### 2. Paged KV Cache Retrieval
 
@@ -224,18 +226,18 @@ Because we utilize a **PagedAttention** architecture, the KV cache is stored in 
 
 #### 3. Tiling and Vectorized Loading
 
-To balance computational intensity with register pressure, we move data in tiles of `kv_block_size`. This is the granularity at which we move $K$ and $V$ tensors into the registers for calculation:
+To balance computational intensity with register pressure, we move data in tiles of `kv_block_size`. This is the granularity at which we move K and V tensors into the registers for calculation:
 
 - **Granularity:** While `block_size` defines how data is *stored* in memory, `kv_block_size` defines the chunk size for *computation*.
 - **Masking and Padding:** For blocks that are not fully occupied by valid tokens (e.g., at the end of a sequence), we apply a boolean mask.
-  - Invalid positions in the $K$ cache are padded with `-inf` to ensure they contribute zero weight during the `exp` stage of the Softmax.
-  - Invalid positions in the $V$ cache are masked to `0` to prevent them from corrupting the weighted sum accumulation.
+  - Invalid positions in the K cache are padded with `-inf` to ensure they contribute zero weight during the `exp` stage of the Softmax.
+  - Invalid positions in the V cache are masked to `0` to prevent them from corrupting the weighted sum accumulation.
 
 #### 4. The Iterative Update Loop
 
 With the data prepared, the kernel executes an iterative loop:
 
-1. **Fetch:** Vectorized load of the next `kv_block_size` chunk of $K$ and $V$ data.
+1. **Fetch:** Vectorized load of the next `kv_block_size` chunk of K and V data.
 2. **Compute:** Perform the dot product between Q and the K-tile.
 3. **Update:** Immediately apply the **Online Softmax** logic to update the running state (m, d, o) before moving to the next chunk.
 
@@ -350,8 +352,8 @@ def flash_attn_decode(
 
 The idea behind split-k is that when the batch size is 1 but the sequence length is extremely long, assigning a single sequence to only one program process clearly results in insufficient parallelism, as shown in the figure below.
 
-![img](posts/parallelization.gif)
+![img](/posts/parallelization.gif)
 
 The long sequence is then split into k segments to further enhance parallelism, and a reduction step is incorporated to update the final output.
 
-![img](posts/parallelization_kv.gif)
+![img](/posts/parallelization_kv.gif)
