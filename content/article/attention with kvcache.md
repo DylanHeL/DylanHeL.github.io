@@ -357,3 +357,119 @@ The idea behind split-k is that when the batch size is 1 but the sequence length
 The long sequence is then split into k segments to further enhance parallelism, and a reduction step is incorporated to update the final output.
 
 ![img](/posts/parallelization_kv.gif)
+
+```python
+@triton.jit
+def flash_attn_split_k_kernel(
+    q_ptr, k_cache_ptr, v_cache_ptr,
+    block_table_ptr, seqlens_ptr,
+    mid_out_ptr, mid_lse_ptr,
+    q_stride_batch, q_stride_head,
+    cache_stride_block, cache_stride_token,
+    block_table_stride,
+    num_heads: tl.constexpr, num_kv_heads: tl.constexpr, head_dim: tl.constexpr,
+    block_size: tl.constexpr, kv_block_size: tl.constexpr,
+    num_splits: tl.constexpr, softmax_scale: tl.constexpr,
+):
+    # get the idx
+    pid_batch = tl.program_id(0)
+    pid_head = tl.program_id(1)
+    pid_split = tl.program_id(2)
+
+    # GQA
+    num_queries_per_kv = num_heads // num_kv_heads
+    kv_head_idx = pid_head // num_queries_per_kv
+
+    # the token range for current split
+    seq_len = tl.load(seqlens_ptr + pid_batch)
+    tokens_per_split = (seq_len + num_splits - 1) // num_splits
+    start_token = pid_split * tokens_per_split
+    end_token = tl.minimum(start_token + tokens_per_split, seq_len)
+
+  	# blank shard
+    if start_token >= end_token:
+        cols = tl.arange(0, head_dim)
+        split_offset = (pid_batch * num_heads * num_splits + pid_head * num_splits + pid_split)
+        tl.store(mid_out_ptr + split_offset * head_dim + cols, tl.zeros([head_dim], dtype=tl.float32))
+        tl.store(mid_lse_ptr + split_offset, float('-inf'))
+        return
+
+    # load q
+    cols = tl.arange(0, head_dim)
+    q_offset = pid_batch * q_stride_batch + pid_head * q_stride_head + cols
+    q = tl.load(q_ptr + q_offset, mask=cols < head_dim)
+
+    m_i = float('-inf')
+    l_i = 0.0
+    acc = tl.zeros([head_dim], dtype=tl.float32)
+
+    for kv_start in range(start_token, end_token, kv_block_size):
+        offs_n = kv_start + tl.arange(0, kv_block_size)
+        mask_n = offs_n < end_token
+
+        # PagedAttention block_idx -> block_id
+        bt_offsets = pid_batch * block_table_stride + (offs_n // block_size)
+        block_ids = tl.load(block_table_ptr + bt_offsets, mask=mask_n, other=-1)
+
+        k_v_offsets = (block_ids[:, None] * cache_stride_block + 
+                       (offs_n % block_size)[:, None] * cache_stride_token + 
+                       kv_head_idx * head_dim + cols[None, :])
+
+        k = tl.load(k_cache_ptr + k_v_offsets, mask=mask_n[:, None], other=0.0)
+        v = tl.load(v_cache_ptr + k_v_offsets, mask=mask_n[:, None], other=0.0)
+
+        # Online Update and dot
+        qk = tl.sum(q[None, :] * k, axis=1) * softmax_scale
+        qk = tl.where(mask_n, qk, float('-inf'))
+
+        m_ij = tl.max(qk)
+        m_i_new = tl.maximum(m_i, m_ij)
+        p = tl.exp(qk - m_i_new)
+        alpha = tl.exp(m_i - m_i_new)
+
+        acc = acc * alpha + tl.sum(p[:, None] * v, axis=0)
+        l_i = l_i * alpha + tl.sum(p)
+        m_i = m_i_new
+
+    split_offset = (pid_batch * num_heads * num_splits + pid_head * num_splits + pid_split)
+    tl.store(mid_out_ptr + split_offset * head_dim + cols, acc)
+    tl.store(mid_lse_ptr + split_offset, m_i + tl.log(l_i))
+```
+
+ 
+
+```python
+@triton.jit
+def flash_attn_combine_kernel(
+    mid_out_ptr, mid_lse_ptr, out_ptr,
+    out_stride_batch, out_stride_head,
+    num_heads: tl.constexpr, num_splits: tl.constexpr, head_dim: tl.constexpr,
+):
+    pid_batch = tl.program_id(0)
+    pid_head = tl.program_id(1)
+    cols = tl.arange(0, head_dim)
+    base_offset = (pid_batch * num_heads + pid_head) * num_splits
+
+    # Pass1:find the maxLSE
+    m_max = float('-inf')
+    for s in range(num_splits):
+        lse = tl.load(mid_lse_ptr + base_offset + s)
+        m_max = tl.maximum(m_max, lse)
+
+    # Pass2:Calculate the normalization factor and perform weighted summation.
+    sum_exp = 0.0
+    acc = tl.zeros([head_dim], dtype=tl.float32)
+    for s in range(num_splits):
+        lse = tl.load(mid_lse_ptr + base_offset + s)
+        weight = tl.exp(lse - m_max)
+        sum_exp += weight
+        
+        split_out_offset = (base_offset + s) * head_dim + cols
+        split_out = tl.load(mid_out_ptr + split_out_offset)
+        acc += weight * split_out
+
+    # normalized
+    out_offset = pid_batch * out_stride_batch + pid_head * out_stride_head + cols
+    tl.store(out_ptr + out_offset, acc / sum_exp)
+```
+
