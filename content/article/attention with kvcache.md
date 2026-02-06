@@ -537,8 +537,10 @@ We benchmarked the performance of our implementation against the official `flash
 | **(1, 65536)**         | **4.819**          | **4.163** | **2.118**      | **1.069**      | **0.652**      | **0.401**       | **0.311**       | **0.129**    |
 | **(1, 131072)**        | **5.500**          | **4.731** | **2.409**      | **1.215**      | **0.743**      | **0.457**       | **0.354**       | **0.136**    |
 
-**MHA: Our implementation is neck-and-neck with the official `flash_attn`. Standard Flash-Attention works great for short context, while Split-K starts to shine as we move into long-sequence territory.**
 
-**GQA: We’re seeing a huge performance delta compared to the official kernel in GQA. The bottleneck is that we currently "broadcast" KV heads to match Query heads instead of implementing true memory reuse. This means we're redundantly fetching the same KV data for every head in a group, losing the bandwidth edge that GQA is supposed to offer. The official kernel fetches KV only once, and since Attention is bandwidth-limited (not compute-limited), their efficiency is much higher.**
 
-**Optimizing GQA with shared memory in Triton is tricky. We could batch all Query heads in a group to force reuse, but that puts us at high risk of Shared Memory (SRAM) overflow. Since the main objective of this project is to demystify vLLM's internals, we're stopping here for now and leaving further GQA kernel optimizations as an exercise for the future.**
+**MHA:** Our implementation is neck-and-neck with the official `flash_attn`. Standard Flash-Attention works great for short context, while Split-K starts to shine as we move into long-sequence territory.
+
+**GQA:** We’re seeing a huge performance delta compared to the official kernel in GQA. The bottleneck is that we currently "broadcast" KV heads to match Query heads instead of implementing true memory reuse. This means we're redundantly fetching the same KV data for every head in a group, losing the bandwidth edge that GQA is supposed to offer. The official kernel fetches KV only once, and since Attention is bandwidth-limited (not compute-limited), their efficiency is much higher.
+
+Optimizing GQA with shared memory in Triton is tricky. We could batch all Query heads in a group to force reuse, but that puts us at high risk of Shared Memory (SRAM) overflow. Since the main objective of this project is to demystify vLLM's internals, we're stopping here for now and leaving further GQA kernel optimizations as an exercise for the future.
