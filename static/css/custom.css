@@ -1,18 +1,29 @@
-/* 1. 修复表格横向溢出 */
-.article-post table {
-    display: block;
-    width: 100%;
-    overflow-x: auto;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
+/* 针对 Bilberry 主题的深度修复 */
+
+/* 1. 确保文章主体容器允许溢出显示 */
+.article-post, .article-content {
+    overflow: visible !important;
 }
 
-/* 2. 修复公式横向溢出 (针对 MathJax 或 KaTeX) */
+/* 2. 强制表格容器 */
+.article-post table {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important; /* 强制显示滚动条 */
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    border-collapse: collapse;
+    word-break: normal !important;
+    white-space: nowrap !important; /* 防止内容换行，撑开宽度以触发滚动 */
+}
+
+/* 3. 针对数学公式 (MathJax/KaTeX) */
+.article-post .katex-display, 
 .article-post .MathJax_Display, 
-.article-post .mjx-chtml, 
-.article-post .katex-display {
+.article-post .mjx-chtml {
+    display: block !important;
+    width: 100% !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    padding: 10px 0;
-    -webkit-overflow-scrolling: touch;
+    padding: 10px 0 !important;
 }
