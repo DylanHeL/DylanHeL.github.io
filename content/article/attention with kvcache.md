@@ -16,6 +16,30 @@ description = "Simple Implementation of Attention with KV Cache in Triton and Pe
 
 +++
 
+<style>
+  /* 针对表格的设置（你已经验证有效） */
+  table {
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+
+  /* 针对公式块的设置 */
+  /* 覆盖 MathJax, KaTeX 以及 Hugo 可能生成的公式容器 */
+  .katex-display, 
+  .MathJax_Display, 
+  .mjx-chtml, 
+  .mjx-container {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 10px 0 !important; /* 预留空间防止上下标被切掉 */
+  }
+</style>
+
+
+
 ## Implementation of Attention with KV Cache
 
 ### simple_pytorch_version
@@ -481,19 +505,10 @@ def flash_attn_combine_kernel(
 
 We benchmarked the performance of our implementation against the official `flash_attn_with_kvcache` method from the Flash-Attention library. The experiments were conducted on an **NVIDIA RTX A6000 GPU** with a head dimension of 128 and 12 query heads. For the MHA (Multi-Head Attention) experiments, the number of KV heads was set to 12, while for GQA (Grouped-Query Attention), it was set to 2
 
-<style>
-  table {
-    display: block !important;
-    overflow-x: auto !important;
-    white-space: nowrap !important;
-  }
-</style>
 
 
 
-
-
-| MHA**(batch, seqlen)** | **Pytorch Native** | **Flash ** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
+| **MHA(batch, seqlen)** | **Pytorch Native** | **Flash ** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
 | ---------------------- | ------------------ | ---------- | -------------- | -------------- | -------------- | --------------- | --------------- | ------------ |
 | **(256, 256)**         | 28.354             | 0.235      | 0.258          | 0.298          | 0.325          | 0.630           | 1.181           | 0.301        |
 | **(128, 512)**         | 14.740             | 0.224      | 0.227          | 0.249          | 0.293          | 0.321           | 0.609           | 0.243        |
@@ -509,21 +524,21 @@ We benchmarked the performance of our implementation against the official `flash
 
 
 
-| GQA**(batch, seqlen)** | **Pytorch Native** | **Flash** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
+| **GQA(batch, seqlen)** | **Pytorch Native** | **Flash** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
 | ---------------------- | ------------------ | --------- | -------------- | -------------- | -------------- | --------------- | --------------- | ------------ |
-| **(256, 256)**         | 36.251             | 0.234     | 0.254          | 0.295          | 0.323          | 0.629           | 1.171           | 0.059        |
-| **(128, 512)**         | 19.355             | 0.238     | 0.237          | 0.252          | 0.296          | 0.325           | 0.613           | 0.051        |
-| **(64, 1024)**         | 10.601             | 0.230     | 0.221          | 0.219          | 0.236          | 0.280           | 0.304           | 0.055        |
-| **(32, 2048)**         | 7.087              | 0.279     | 0.241          | 0.226          | 0.228          | 0.243           | 0.284           | 0.053        |
-| **(16, 4096)**         | 4.950              | 0.316     | 0.243          | 0.224          | 0.215          | 0.215           | 0.238           | 0.052        |
-| **(8, 8192)**          | 4.045              | 0.515     | 0.320          | 0.246          | 0.235          | 0.214           | 0.220           | 0.055        |
-| **(4, 16384)**         | 4.235              | 0.927     | 0.576          | 0.351          | 0.275          | 0.269           | 0.245           | 0.092        |
-| **(2, 32768)**         | 3.915              | 1.860     | 0.963          | 0.593          | 0.341          | 0.261           | 0.248           | 0.105        |
-| **(1, 65536)**         | 4.819              | 4.163     | 2.118          | 1.069          | 0.652          | 0.401           | 0.311           | 0.129        |
-| **(1, 131072)**        | 5.500              | 4.731     | 2.409          | 1.215          | 0.743          | 0.457           | 0.354           | 0.136        |
+| **(256, 256)**         | **36.251**         | **0.234** | **0.254**      | **0.295**      | **0.323**      | **0.629**       | **1.171**       | **0.059**    |
+| **(128, 512)**         | **19.355**         | **0.238** | **0.237**      | **0.252**      | **0.296**      | **0.325**       | **0.613**       | **0.051**    |
+| **(64, 1024)**         | **10.601**         | **0.230** | **0.221**      | **0.219**      | **0.236**      | **0.280**       | **0.304**       | **0.055**    |
+| **(32, 2048)**         | **7.087**          | **0.279** | **0.241**      | **0.226**      | **0.228**      | **0.243**       | **0.284**       | **0.053**    |
+| **(16, 4096)**         | **4.950**          | **0.316** | **0.243**      | **0.224**      | **0.215**      | **0.215**       | **0.238**       | **0.052**    |
+| **(8, 8192)**          | **4.045**          | **0.515** | **0.320**      | **0.246**      | **0.235**      | **0.214**       | **0.220**       | **0.055**    |
+| **(4, 16384)**         | **4.235**          | **0.927** | **0.576**      | **0.351**      | **0.275**      | **0.269**       | **0.245**       | **0.092**    |
+| **(2, 32768)**         | **3.915**          | **1.860** | **0.963**      | **0.593**      | **0.341**      | **0.261**       | **0.248**       | **0.105**    |
+| **(1, 65536)**         | **4.819**          | **4.163** | **2.118**      | **1.069**      | **0.652**      | **0.401**       | **0.311**       | **0.129**    |
+| **(1, 131072)**        | **5.500**          | **4.731** | **2.409**      | **1.215**      | **0.743**      | **0.457**       | **0.354**       | **0.136**    |
 
-**MHA:** Our implementation is neck-and-neck with the official `flash_attn`. Standard Flash-Attention works great for short context, while Split-K starts to shine as we move into long-sequence territory.
+**MHA: Our implementation is neck-and-neck with the official `flash_attn`. Standard Flash-Attention works great for short context, while Split-K starts to shine as we move into long-sequence territory.**
 
-**GQA:** We’re seeing a huge performance delta compared to the official kernel in GQA. The bottleneck is that we currently "broadcast" KV heads to match Query heads instead of implementing true memory reuse. This means we're redundantly fetching the same KV data for every head in a group, losing the bandwidth edge that GQA is supposed to offer. The official kernel fetches KV only once, and since Attention is bandwidth-limited (not compute-limited), their efficiency is much higher.
+**GQA: We’re seeing a huge performance delta compared to the official kernel in GQA. The bottleneck is that we currently "broadcast" KV heads to match Query heads instead of implementing true memory reuse. This means we're redundantly fetching the same KV data for every head in a group, losing the bandwidth edge that GQA is supposed to offer. The official kernel fetches KV only once, and since Attention is bandwidth-limited (not compute-limited), their efficiency is much higher.**
 
-Optimizing GQA with shared memory in Triton is tricky. We could batch all Query heads in a group to force reuse, but that puts us at high risk of Shared Memory (SRAM) overflow. Since the main objective of this project is to demystify vLLM's internals, we're stopping here for now and leaving further GQA kernel optimizations as an exercise for the future.
+**Optimizing GQA with shared memory in Triton is tricky. We could batch all Query heads in a group to force reuse, but that puts us at high risk of Shared Memory (SRAM) overflow. Since the main objective of this project is to demystify vLLM's internals, we're stopping here for now and leaving further GQA kernel optimizations as an exercise for the future.**
