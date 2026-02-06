@@ -482,7 +482,8 @@ def flash_attn_combine_kernel(
 We benchmarked the performance of our implementation against the official `flash_attn_with_kvcache` method from the Flash-Attention library. The experiments were conducted on an **NVIDIA RTX A6000 GPU** with a head dimension of 128 and 12 query heads. For the MHA (Multi-Head Attention) experiments, the number of KV heads was set to 12, while for GQA (Grouped-Query Attention), it was set to 2
 
 <div style="overflow-x: auto;">
-    | MHA**(batch, seqlen)** | **Pytorch Native** | **Flash ** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
+
+| MHA**(batch, seqlen)** | **Pytorch Native** | **Flash ** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
 | ---------------------- | ------------------ | ---------- | -------------- | -------------- | -------------- | --------------- | --------------- | ------------ |
 | **(256, 256)**         | 28.354             | 0.235      | 0.258          | 0.298          | 0.325          | 0.630           | 1.181           | 0.301        |
 | **(128, 512)**         | 14.740             | 0.224      | 0.227          | 0.249          | 0.293          | 0.321           | 0.609           | 0.243        |
@@ -495,6 +496,11 @@ We benchmarked the performance of our implementation against the official `flash
 | **(1, 65536)**         | 4.734              | 3.791      | 1.957          | 1.003          | 0.648          | 0.537           | 0.525           | 0.530        |
 | **(1, 131072)**        | 5.864              | 4.736      | 2.446          | 1.252          | 0.807          | 0.669           | 0.655           | 0.653        |
 
+</div>
+
+​    
+
+</div>
 
 
 
@@ -512,9 +518,7 @@ We benchmarked the performance of our implementation against the official `flash
 | **(1, 65536)**         | 4.734              | 3.791      | 1.957          | 1.003          | 0.648          | 0.537           | 0.525           | 0.530        |
 | **(1, 131072)**        | 5.864              | 4.736      | 2.446          | 1.252          | 0.807          | 0.669           | 0.655           | 0.653        |
 
-
-
-
+</div>
 
 
 
