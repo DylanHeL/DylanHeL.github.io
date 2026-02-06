@@ -1,0 +1,18 @@
+/* 1. 修复表格横向溢出 */
+.article-post table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+
+/* 2. 修复公式横向溢出 (针对 MathJax 或 KaTeX) */
+.article-post .MathJax_Display, 
+.article-post .mjx-chtml, 
+.article-post .katex-display {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 10px 0;
+    -webkit-overflow-scrolling: touch;
+}
