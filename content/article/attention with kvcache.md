@@ -481,6 +481,17 @@ def flash_attn_combine_kernel(
 
 We benchmarked the performance of our implementation against the official `flash_attn_with_kvcache` method from the Flash-Attention library. The experiments were conducted on an **NVIDIA RTX A6000 GPU** with a head dimension of 128 and 12 query heads. For the MHA (Multi-Head Attention) experiments, the number of KV heads was set to 12, while for GQA (Grouped-Query Attention), it was set to 2
 
+<style>
+  table {
+    display: block !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+</style>
+
+
+
+
 
 | MHA**(batch, seqlen)** | **Pytorch Native** | **Flash ** | **Split-K(2)** | **Split-K(4)** | **Split-K(8)** | **Split-K(16)** | **Split-K(32)** | **Official** |
 | ---------------------- | ------------------ | ---------- | -------------- | -------------- | -------------- | --------------- | --------------- | ------------ |
